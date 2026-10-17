@@ -1,30 +1,26 @@
 <template>
   <div class="chat-page">
     <header class="chat-header">
-      <h1>AI 编程小助手</h1>
-      <span class="session-id">会话 ID：{{ memoryId }}</span>
+      <div class="brand">
+        <h1>AI 编程小助手</h1>
+        <span class="session-id">会话 {{ memoryId }}</span>
+      </div>
     </header>
 
     <main class="chat-main" ref="chatMainRef">
-      <div
+      <article
         v-for="(msg, index) in messages"
         :key="index"
-        class="message-row"
-        :class="msg.role === 'user' ? 'user' : 'ai'"
+        class="message"
+        :class="msg.role"
       >
-        <div class="avatar">{{ msg.role === 'user' ? '我' : 'AI' }}</div>
-        <div class="bubble">
-          <div class="content" v-html="renderContent(msg.content)"></div>
-        </div>
-      </div>
+        <div class="meta">{{ msg.role === 'user' ? '你' : '助手' }}</div>
+        <div class="content" v-html="renderContent(msg.content)"></div>
+      </article>
 
-      <div v-if="loading" class="message-row ai">
-        <div class="avatar">AI</div>
-        <div class="bubble loading">
-          <span class="dot"></span>
-          <span class="dot"></span>
-          <span class="dot"></span>
-        </div>
+      <div v-if="loading" class="typing">
+        <span class="typing-meta">助手</span>
+        <span class="typing-text">正在思考</span>
       </div>
     </main>
 
@@ -33,7 +29,7 @@
         <input
           v-model="inputMessage"
           type="text"
-          placeholder="请输入编程学习或求职面试相关的问题..."
+          placeholder="输入编程学习或求职面试问题..."
           :disabled="loading"
           @keydown.enter="handleSend"
         />
@@ -87,9 +83,70 @@ function scrollToBottom() {
   })
 }
 
-// 渲染消息内容：先转义 < > 防止 XSS，再把换行符转为 <br/> 保持排版
+// 渲染消息内容：支持轻量 Markdown 与自动识别 URL
 function renderContent(content) {
-  return content.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br/>')
+  const codeBlocks = []
+  const inlineCodes = []
+
+  // 保护代码块，避免内部内容被 Markdown/URL 解析
+  let html = content.replace(/```([\s\S]*?)```/g, (match, code) => {
+    const key = `__CODE_BLOCK_${codeBlocks.length}__`
+    codeBlocks.push(`<pre><code>${escapeHtml(code.trim())}</code></pre>`)
+    return key
+  })
+
+  // 保护行内代码
+  html = html.replace(/`([^`]+)`/g, (match, code) => {
+    const key = `__INLINE_CODE_${inlineCodes.length}__`
+    inlineCodes.push(`<code>${escapeHtml(code)}</code>`)
+    return key
+  })
+
+  // 转义剩余 HTML
+  html = escapeHtml(html)
+
+  // Markdown 加粗 / 斜体
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>')
+
+  // Markdown 链接 [text](url)
+  html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+
+  // 保护已生成的链接，避免自动识别 URL 时嵌套解析
+  const existingLinks = []
+  html = html.replace(/<a[^>]*>.*?<\/a>/g, (match) => {
+    const key = `__EXISTING_LINK_${existingLinks.length}__`
+    existingLinks.push(match)
+    return key
+  })
+
+  // 自动识别 URL
+  html = html.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>')
+
+  // 恢复已生成的链接
+  existingLinks.forEach((link, i) => {
+    html = html.replace(`__EXISTING_LINK_${i}__`, link)
+  })
+
+  // 换行
+  html = html.replace(/\n/g, '<br/>')
+
+  // 恢复代码块与行内代码
+  codeBlocks.forEach((block, i) => {
+    html = html.replace(`__CODE_BLOCK_${i}__`, block)
+  })
+  inlineCodes.forEach((code, i) => {
+    html = html.replace(`__INLINE_CODE_${i}__`, code)
+  })
+
+  return html
+}
+
+function escapeHtml(text) {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
 }
 
 // 发送消息并发起流式请求，逐帧渲染 AI 返回的内容
@@ -178,170 +235,216 @@ function handleSend() {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  max-width: 900px;
+  max-width: 760px;
   margin: 0 auto;
-  background-color: #ffffff;
-  box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
+  background-color: #f7f7f5;
+  color: #1a1a1a;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 .chat-header {
-  padding: 16px 24px;
-  border-bottom: 1px solid #e8e8e8;
+  padding: 24px 0;
+  margin: 0 24px;
+  border-bottom: 1px solid #e5e5e0;
+}
+
+.brand {
   display: flex;
+  align-items: baseline;
   justify-content: space-between;
-  align-items: center;
-  background-color: #fff;
 }
 
 .chat-header h1 {
-  font-size: 18px;
-  color: #1a1a1a;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .session-id {
   font-size: 12px;
   color: #999;
+  font-variant-numeric: tabular-nums;
 }
 
 .chat-main {
   flex: 1;
   overflow-y: auto;
-  padding: 24px;
-  background-color: #f7f8fa;
+  padding: 32px 24px;
 }
 
-.message-row {
+.message {
+  margin-bottom: 32px;
+}
+
+.message.user {
   display: flex;
-  align-items: flex-start;
-  margin-bottom: 20px;
+  flex-direction: column;
+  align-items: flex-end;
 }
 
-.message-row.user {
-  flex-direction: row-reverse;
+.meta {
+  font-size: 11px;
+  font-weight: 500;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
 }
 
-.avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  color: #fff;
-  flex-shrink: 0;
+.message.user .meta {
+  color: #737373;
 }
 
-.message-row.user .avatar {
-  background-color: #4e8df5;
-  margin-left: 12px;
-}
-
-.message-row.ai .avatar {
-  background-color: #10a37f;
-  margin-right: 12px;
-}
-
-.bubble {
-  max-width: 70%;
-  padding: 12px 16px;
-  border-radius: 12px;
-  line-height: 1.6;
-  font-size: 14px;
+.content {
+  max-width: 85%;
+  font-size: 15px;
+  line-height: 1.7;
+  white-space: pre-wrap;
   word-break: break-word;
 }
 
-.message-row.user .bubble {
-  background-color: #d6e9ff;
+.content a {
+  color: #0f766e;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.content a:hover {
+  color: #115e57;
+}
+
+.content code {
+  font-family: "JetBrains Mono", "Fira Code", "SF Mono", Consolas, Monaco, monospace;
+  font-size: 13px;
+  background-color: #f2f2f0;
+  padding: 2px 5px;
+  border-radius: 4px;
+}
+
+.content pre {
+  background-color: #1a1a1a;
+  color: #f2f2f0;
+  padding: 16px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+.content pre code {
+  background-color: transparent;
+  color: inherit;
+  padding: 0;
+  border-radius: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.message.user .content {
+  background-color: #1a1a1a;
+  color: #fff;
+  padding: 14px 18px;
+  border-radius: 8px;
+}
+
+.message.ai .content {
+  background-color: #fff;
   color: #1a1a1a;
-  border-top-right-radius: 2px;
+  padding: 14px 18px 14px 20px;
+  border-left: 2px solid #0f766e;
+  border-radius: 8px;
 }
 
-.message-row.ai .bubble {
-  background-color: #ffffff;
-  color: #1a1a1a;
-  border: 1px solid #e8e8e8;
-  border-top-left-radius: 2px;
+.typing {
+  margin-bottom: 32px;
 }
 
-.bubble.loading {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 60px;
+.typing-meta {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
 }
 
-.dot {
-  width: 8px;
-  height: 8px;
-  background-color: #999;
-  border-radius: 50%;
-  animation: bounce 1.4s infinite ease-in-out both;
+.typing-text {
+  display: inline-block;
+  background-color: #fff;
+  color: #999;
+  padding: 14px 18px 14px 20px;
+  border-left: 2px solid #0f766e;
+  border-radius: 8px;
+  font-size: 15px;
 }
 
-.dot:nth-child(1) {
-  animation-delay: -0.32s;
+.typing-text::after {
+  content: "…";
+  animation: ellipsis 1.5s steps(4, end) infinite;
 }
 
-.dot:nth-child(2) {
-  animation-delay: -0.16s;
-}
-
-@keyframes bounce {
-  0%, 80%, 100% {
-    transform: scale(0);
-  }
-  40% {
-    transform: scale(1);
-  }
+@keyframes ellipsis {
+  0% { content: ""; }
+  25% { content: "."; }
+  50% { content: ".."; }
+  75% { content: "..."; }
+  100% { content: ""; }
 }
 
 .chat-footer {
-  padding: 16px 24px;
-  border-top: 1px solid #e8e8e8;
-  background-color: #fff;
+  padding: 20px 24px 32px;
+  border-top: 1px solid #e5e5e0;
 }
 
 .input-area {
   display: flex;
-  gap: 12px;
+  align-items: center;
+  gap: 16px;
 }
 
 .input-area input {
   flex: 1;
   padding: 12px 16px;
-  border: 1px solid #d9d9d9;
+  background: #fff;
+  border: 1px solid #d9d9d6;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 15px;
+  color: #1a1a1a;
   outline: none;
   transition: border-color 0.2s;
 }
 
+.input-area input::placeholder {
+  color: #999;
+}
+
 .input-area input:focus {
-  border-color: #4e8df5;
+  border-color: #0f766e;
 }
 
 .input-area input:disabled {
-  background-color: #f5f5f5;
+  color: #999;
+  background: #f2f2f0;
 }
 
 .input-area button {
-  padding: 12px 24px;
-  background-color: #4e8df5;
+  padding: 10px 20px;
+  background-color: #0f766e;
   color: #fff;
   border: none;
-  border-radius: 8px;
   font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
   transition: background-color 0.2s;
 }
 
 .input-area button:hover:not(:disabled) {
-  background-color: #3a7de4;
+  background-color: #115e57;
 }
 
 .input-area button:disabled {
-  background-color: #b3c7e6;
+  background-color: #bfc9c8;
   cursor: not-allowed;
 }
 </style>
