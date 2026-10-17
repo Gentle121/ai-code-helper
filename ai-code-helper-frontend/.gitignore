@@ -1,0 +1,38 @@
+# 依赖
+node_modules/
+
+# 编译产物
+dist/
+dist-ssr/
+*.local
+
+# 日志
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# 本地环境配置
+.env
+.env.*
+!.env.example
+
+# TraeWork 调试用的项目级 skill
+.trae/
+
+# 编辑器与系统文件
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db
+
+# 缓存
+.cache/
+.vite/
+coverage/

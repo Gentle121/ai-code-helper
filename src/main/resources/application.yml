@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: ai-code-helper
+  profiles:
+    active: local
+server:
+  port: 8081
+  servlet:
+    context-path: /api
+langchain4j:
+  community:
+    dashscope:
+      chat-model:
+        api-key: ${DASHSCOPE_API_KEY}
+        model-name: qwen-plus
+      embedding-model:
+        model-name: text-embedding-v4
+        api-key: ${DASHSCOPE_API_KEY}
+      streaming-chat-model:
+        model-name: qwen-plus
+        api-key: ${DASHSCOPE_API_KEY}
+bigmodel:
+  api-key: ${BIGMODEL_API_KEY}
